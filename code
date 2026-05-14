@@ -1,0 +1,460 @@
+MySQL Database :
+
+
+CREATE DATABASE attendance_db;
+
+USE attendance_db;
+
+CREATE TABLE students (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100),
+    present_count INT DEFAULT 0,
+    absent_count INT DEFAULT 0
+);
+
+
+
+db.java:
+
+package project;
+
+import java.sql.*;
+
+public class db {
+
+    public static Connection getConnection() {
+
+        Connection con = null;
+
+        try {
+
+            Class.forName("com.mysql.cj.jdbc.Driver");
+
+            con = DriverManager.getConnection(
+                "jdbc:mysql://localhost:3306/attendance_db",
+                "root",
+                "password"
+            );
+
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+
+        return con;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+index.jsp:
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="login-box">
+
+    <h1>Attendance Tracker</h1>
+
+    <a href="dashboard.jsp">
+        <button>Open Dashboard</button>
+    </a>
+
+</div>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+dashboard.jsp:
+
+
+<%@ page import="java.sql.*" %>
+<%@ page import="project.db" %>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+
+<h1>Attendance Dashboard</h1>
+
+<%
+Connection con = db.getConnection();
+Statement st = con.createStatement();
+%>
+
+<div class="top-cards">
+
+<div class="card blue">
+<h2>Total Students</h2>
+<p>
+<%
+ResultSet rs1 = st.executeQuery("SELECT COUNT(*) FROM students");
+rs1.next();
+out.print(rs1.getInt(1));
+%>
+</p>
+</div>
+
+<div class="card green">
+<h2>Total Present</h2>
+<p>
+<%
+ResultSet rs2 = st.executeQuery("SELECT SUM(present_count) FROM students");
+rs2.next();
+out.print(rs2.getInt(1));
+%>
+</p>
+</div>
+
+<div class="card red">
+<h2>Total Absent</h2>
+<p>
+<%
+ResultSet rs3 = st.executeQuery("SELECT SUM(absent_count) FROM students");
+rs3.next();
+out.print(rs3.getInt(1));
+%>
+</p>
+</div>
+
+</div>
+
+<form action="AddStudentServlet" method="post">
+
+<input type="text" name="name" placeholder="Student Name" required>
+
+<button type="submit">Add Student</button>
+
+</form>
+
+<br><br>
+
+<table>
+
+<tr>
+<th>ID</th>
+<th>Name</th>
+<th>Present</th>
+<th>Absent</th>
+<th>Actions</th>
+</tr>
+
+<%
+ResultSet rs = st.executeQuery("SELECT * FROM students");
+
+while(rs.next()) {
+%>
+
+<tr>
+
+<td><%= rs.getInt("id") %></td>
+
+<td><%= rs.getString("name") %></td>
+
+<td><%= rs.getInt("present_count") %></td>
+
+<td><%= rs.getInt("absent_count") %></td>
+
+<td>
+
+<a href="AttendanceServlet?id=<%= rs.getInt("id") %>&type=present">
+
+<button class="present">
+Present
+</button>
+
+</a>
+
+<a href="AttendanceServlet?id=<%= rs.getInt("id") %>&type=absent">
+
+<button class="absent">
+Absent
+</button>
+
+</a>
+
+</td>
+
+</tr>
+
+<%
+}
+%>
+
+</table>
+
+</div>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+AddStudentServlet.java:
+
+package project;
+
+import java.io.*;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import java.sql.*;
+
+public class AddStudentServlet extends HttpServlet {
+
+    protected void doPost(HttpServletRequest request,
+                          HttpServletResponse response)
+            throws ServletException, IOException {
+
+        String name = request.getParameter("name");
+
+        try {
+
+            Connection con = db.getConnection();
+
+            PreparedStatement ps = con.prepareStatement(
+                "INSERT INTO students(name) VALUES(?)"
+            );
+
+            ps.setString(1, name);
+
+            ps.executeUpdate();
+
+            response.sendRedirect("dashboard.jsp");
+
+        } catch(Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+
+
+AttendanceServlet.java::
+
+
+package project;
+
+import java.io.*;
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import java.sql.*;
+
+public class AttendanceServlet extends HttpServlet {
+
+    protected void doGet(HttpServletRequest request,
+                         HttpServletResponse response)
+            throws ServletException, IOException {
+
+        int id = Integer.parseInt(request.getParameter("id"));
+
+        String type = request.getParameter("type");
+
+        try {
+
+            Connection con = db.getConnection();
+
+            String sql = "";
+
+            if(type.equals("present")) {
+
+                sql = "UPDATE students SET present_count = present_count + 1 WHERE id=?";
+
+            } else {
+
+                sql = "UPDATE students SET absent_count = absent_count + 1 WHERE id=?";
+
+            }
+
+            PreparedStatement ps = con.prepareStatement(sql);
+
+            ps.setInt(1, id);
+
+            ps.executeUpdate();
+
+            response.sendRedirect("dashboard.jsp");
+
+        } catch(Exception e) {
+
+            e.printStackTrace();
+
+        }
+    }
+}
+
+
+
+
+
+web.xml::
+
+<web-app>
+
+<servlet>
+    <servlet-name>AddStudentServlet</servlet-name>
+    <servlet-class>project.AddStudentServlet</servlet-class>
+</servlet>
+
+<servlet-mapping>
+    <servlet-name>AddStudentServlet</servlet-name>
+    <url-pattern>/AddStudentServlet</url-pattern>
+</servlet-mapping>
+
+<servlet>
+    <servlet-name>AttendanceServlet</servlet-name>
+    <servlet-class>project.AttendanceServlet</servlet-class>
+</servlet>
+
+<servlet-mapping>
+    <servlet-name>AttendanceServlet</servlet-name>
+    <url-pattern>/AttendanceServlet</url-pattern>
+</servlet-mapping>
+
+</web-app>
+
+
+
+
+style.css::
+
+
+body {
+    margin: 0;
+    font-family: Arial;
+    background: linear-gradient(to right,#e2e8f0,#f8fafc);
+}
+
+.container {
+    width: 90%;
+    margin: auto;
+    padding: 30px;
+}
+
+h1 {
+    color: #1e293b;
+}
+
+.top-cards {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.card {
+    flex: 1;
+    padding: 25px;
+    border-radius: 20px;
+    color: white;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.card h2 {
+    margin-bottom: 15px;
+}
+
+.card p {
+    font-size: 35px;
+    font-weight: bold;
+}
+
+.blue {
+    background: linear-gradient(135deg,#2563eb,#1d4ed8);
+}
+
+.green {
+    background: linear-gradient(135deg,#16a34a,#15803d);
+}
+
+.red {
+    background: linear-gradient(135deg,#dc2626,#b91c1c);
+}
+
+input {
+    padding: 12px;
+    width: 250px;
+    border-radius: 8px;
+    border: 1px solid gray;
+}
+
+button {
+    padding: 12px 18px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: white;
+    background: #2563eb;
+}
+
+.present {
+    background: green;
+}
+
+.absent {
+    background: red;
+}
+
+table {
+    width: 100%;
+    background: white;
+    border-collapse: collapse;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+th {
+    background: #1e293b;
+    color: white;
+}
+
+th, td {
+    padding: 15px;
+    border: 1px solid #ddd;
+    text-align: center;
+}
+
+.login-box {
+    width: 350px;
+    background: white;
+    padding: 30px;
+    margin: 100px auto;
+    border-radius: 20px;
+    text-align: center;
+}
+
+
+
+
+
+
+
